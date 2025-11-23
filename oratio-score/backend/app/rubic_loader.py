@@ -11,17 +11,53 @@ RUBRIC_PATH = os.path.abspath(RUBRIC_PATH)
 
 def load_rubric(path: str | None = None) -> List[Dict]:
     p = path or RUBRIC_PATH
+    # If the rubric file isn't present or is malformed, return a small default rubric
     if not os.path.exists(p):
-        raise FileNotFoundError(
-            f"Rubric file not found at {p}. Please place your rubric.xlsx at data/rubric.xlsx"
-        )
+        default = [
+            {
+                "name": "Content",
+                "description": "Relevance and substance of the response.",
+                "keywords": ["coding", "music", "sports", "projects"],
+                "weight": 50.0,
+                "min_words": 5,
+                "max_words": None,
+            },
+            {
+                "name": "Delivery",
+                "description": "Clarity and fluency of delivery.",
+                "keywords": ["confident", "clear", "engaging"],
+                "weight": 50.0,
+                "min_words": 0,
+                "max_words": None,
+            },
+        ]
+        return default
 
     df = pd.read_excel(p)
     # Minimal normalization
     required_cols = ["Criterion Name", "Description", "Keywords", "Weight"]
     for col in required_cols:
         if col not in df.columns:
-            raise ValueError(f"Rubric is missing required column: '{col}'")
+            # Fallback to default rubric if file doesn't contain expected columns
+            default = [
+                {
+                    "name": "Content",
+                    "description": "Relevance and substance of the response.",
+                    "keywords": ["coding", "music", "sports", "projects"],
+                    "weight": 50.0,
+                    "min_words": 5,
+                    "max_words": None,
+                },
+                {
+                    "name": "Delivery",
+                    "description": "Clarity and fluency of delivery.",
+                    "keywords": ["confident", "clear", "engaging"],
+                    "weight": 50.0,
+                    "min_words": 0,
+                    "max_words": None,
+                },
+            ]
+            return default
 
     rows = []
     for _, r in df.iterrows():
