@@ -1,14 +1,20 @@
+﻿# Backend runtime requirements
+# ZON support: implemented internally as `app.zon` (no external PyPI package required).
+# If you later want an external ZON package, add it here.
+
 fastapi
 uvicorn[standard]
 pandas
 openpyxl
-sentence-transformers
 python-multipart
 pydantic
-pytest
 requests
-langchain  
-openai      
-azureopenai  
-rapidfuzz   
+rapidfuzz
 numpy
+sentence-transformers
+
+# Dev / test extras (optional)
+pytest
+langchain
+openai
+azureopenai

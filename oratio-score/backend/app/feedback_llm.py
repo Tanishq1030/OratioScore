@@ -25,6 +25,7 @@ except ImportError:
     LLM_TYPE = None
 
 from app.config import settings
+from pydantic import BaseModel
 
 
 def generate_feedback_simple(transcript: List[Dict]) -> Dict[str, Dict]:
@@ -79,8 +80,48 @@ Output (JSON array):"""
     prompt = PromptTemplate(input_variables=["transcript_bolb"], template=template)
 
     # We'll not rely on StructuredOutputParser for nested arrays here to keep the dependency simple;
-    # Instead, we'll request JSON feedack an attempt to parse it.
+    # Instead, we'll request strict JSON feedback and validate it after parsing.
     return prompt
+
+
+def _validate_parsed_feedback(parsed) -> bool:
+    """Validate that parsed output is a list of dicts with required string fields.
+
+    Expected fields for each item: criterion (or name), evaluation, suggestion, justification
+    """
+    if not isinstance(parsed, list):
+        return False
+    for item in parsed:
+        if not isinstance(item, dict):
+            return False
+        # check presence of any acceptable key for criterion
+        crit = item.get("criterion") or item.get("criterion_name") or item.get("name")
+        if not crit or not isinstance(crit, str):
+            return False
+        for k in ("evaluation", "suggestion", "justification"):
+            v = item.get(k)
+            if v is None or not isinstance(v, str):
+                return False
+    return True
+
+
+class _FeedbackItem(BaseModel):
+    criterion: str
+    evaluation: str
+    suggestion: str
+    justification: str
+
+
+def _convert_parsed_to_dict(parsed: List[Dict]) -> Dict[str, Dict]:
+    out = {}
+    for item in parsed:
+        crit = item.get("criterion") or item.get("criterion_name") or item.get("name")
+        out[crit] = {
+            "evaluation": item.get("evaluation", ""),
+            "suggestion": item.get("suggestion", ""),
+            "justification": item.get("justification", ""),
+        }
+    return out
 
 
 def generate_feedback_llm(transcript: List[Dict]) -> Dict[str, Dict]:
@@ -105,10 +146,19 @@ def generate_feedback_llm(transcript: List[Dict]) -> Dict[str, Dict]:
             llm = OpenAI(temperature=float(settings.LLM_TEMPERATURE))
         chain = LLMChain(llm=llm, prompt=prompt)
         raw_out = chain.run(transcript_bolb=transcript_bolb)
-        # Expect raw_out to be JSON array
-        parsed = json.loads(raw_out)
-        # Convert to dictkeyed by criterion
 
+        # Expect raw_out to be JSON array; be defensive and validate shape.
+        try:
+            parsed = json.loads(raw_out)
+        except Exception:
+            # If JSON parsing fails, fallback to deterministic generator
+            return generate_feedback_simple(transcript)
+
+        if not _validate_parsed_feedback(parsed):
+            # Invalid schema, fallback
+            return generate_feedback_simple(transcript)
+
+        # Convert to dict keyed by criterion
         out = {}
         for item in parsed:
             crit = (
@@ -120,6 +170,6 @@ def generate_feedback_llm(transcript: List[Dict]) -> Dict[str, Dict]:
                 "justification": item.get("justification", ""),
             }
         return out
-    except Exception as e:
-        # Fallback
+    except Exception:
+        # Fallback for any LLM/runtime issues
         return generate_feedback_simple(transcript)

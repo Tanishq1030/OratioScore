@@ -121,6 +121,7 @@ def score_transcript(
             {
                 "name": crit_name,
                 "weight": r["weight"],
+                "keywords": r.get("keywords", []),
                 "keyword_score": float(round(kscore, 3)),
                 "keywords_found": matched,
                 "semantic_score": float(round(sscore, 3)),
@@ -132,6 +133,7 @@ def score_transcript(
         evidence[crit_name] = {
             "name": crit_name,
             "description": r.get("description"),
+            "keywords": r.get("keywords", []),
             "weight": r["weight"],
             "keyword_score": float(round(kscore, 3)),
             "keywords_found": matched,
